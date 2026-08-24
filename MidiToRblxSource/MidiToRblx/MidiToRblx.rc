@@ -1,0 +1,242 @@
+// Microsoft Visual C++ generated resource script.
+//
+#pragma code_page(65001)
+
+#include "Resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define APSTUDIO_READONLY_SYMBOLS
+#include "winres.h"
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Anglais (États-Unis) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_MAIN_DIALOG DIALOGEX 0, 0, 300, 303
+STYLE DS_SETFONT | DS_MODALFRAME | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "MidiToRblx"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "Direct MIDI Input",IDC_STATIC,9,11,79,12
+    COMBOBOX        IDC_INPUT_DEVICES,77,9,143,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Refresh",IDC_REFRESH_INPUTS,237,7,54,16
+    PUSHBUTTON      "Connect",IDC_CONNECT_INPUT,9,33,137,20
+    PUSHBUTTON      "Stop",IDC_STOP_INPUT,154,33,137,20
+    CONTROL         "",IDC_SEPARATOR,"Static",SS_ETCHEDHORZ,9,62,282,1
+    LTEXT           "MIDI File",IDC_STATIC,9,73,48,12
+    PUSHBUTTON      "Select File",IDC_SELECT_FILE,62,69,68,19
+    LTEXT           "",IDC_SELECTED_FILE,135,73,156,12,SS_ENDELLIPSIS
+    PUSHBUTTON      "Play",IDC_PLAY_FILE,9,96,89,20
+    PUSHBUTTON      "Pause",IDC_PAUSE_FILE,106,96,88,20
+    PUSHBUTTON      "Stop",IDC_STOP_FILE,202,96,89,20
+    LTEXT           "00:00/00:00",IDC_FILE_DURATION,9,126,282,12
+    CONTROL         "",IDC_FILE_PROGRESS,"msctls_progress32",PBS_SMOOTH | WS_BORDER,9,143,282,6
+    LTEXT           "",IDC_STATUS_LABEL,9,158,282,13,SS_ENDELLIPSIS
+    PUSHBUTTON      "Live Monitor",MONITOR_BUTTON,27,190,50,14,BS_NOTIFY
+    GROUPBOX        "Settings",IDC_STATIC,9,176,282,118
+    PUSHBUTTON      "Credits",CREDITS_BUTTON,222,190,50,14,BS_NOTIFY
+    GROUPBOX        "Secret Sauce",IDC_STATIC,9,209,282,85
+    CONTROL         "",TRANSPOSE_CONTROL,"msctls_updown32",UDS_ARROWKEYS,26,228,10,14
+    LTEXT           "NPS:",IDC_STATIC,90,193,15,8
+    CONTROL         "",IDC_RICHEDIT22,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,228,40,14
+    CONTROL         "<a href=""https://github.com/Axtorz/MidiToRblx"">MidiToRblx by Axtorz</a>",IDC_SYSLINK1,
+                    "SysLink",WS_TABSTOP,16,288,64,14
+    GROUPBOX        "Transposition",IDC_STATIC,16,217,77,33
+    GROUPBOX        "Octave Shift",IDC_STATIC,94,217,77,33
+    GROUPBOX        "Octave Duplication",IDC_STATIC,16,253,77,33
+    GROUPBOX        "Mode",IDC_STATIC,94,253,77,33
+    LTEXT           "0",IDC_STATIC,106,193,52,8
+    CONTROL         "",TRANSPOSE_CONTROL2,"msctls_updown32",UDS_ARROWKEYS,26,264,10,14
+    CONTROL         "",IDC_RICHEDIT23,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,264,40,14
+    CONTROL         "",TRANSPOSE_CONTROL3,"msctls_updown32",UDS_ARROWKEYS,104,229,10,14
+    CONTROL         "",IDC_RICHEDIT24,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,119,229,40,14
+    GROUPBOX        "Echo/Delay",IDC_STATIC,173,217,110,69
+    CONTROL         "RGB MODE!!",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,48,10
+    CONTROL         "MidiToQwerty",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,260,56,10
+    CONTROL         "Midiconnect",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,272,48,10
+END
+
+IDD_DEBUG_MONITOR DIALOGEX 0, 0, 760, 430
+STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+EXSTYLE WS_EX_CONTROLPARENT | WS_EX_APPWINDOW
+CAPTION "MidiToRblx Debug Monitor"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    CONTROL         "Note On",IDC_FILTER_NOTE_ON,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,7,54,12
+    CONTROL         "Note Off",IDC_FILTER_NOTE_OFF,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,65,7,57,12
+    CONTROL         "Control Change",IDC_FILTER_CONTROL_CHANGE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,125,7,82,12
+    CONTROL         "Program Change",IDC_FILTER_PROGRAM_CHANGE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,7,84,12
+    CONTROL         "Pitch Bend",IDC_FILTER_PITCH_BEND,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,297,7,63,12
+    CONTROL         "Aftertouch",IDC_FILTER_AFTERTOUCH,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,363,7,63,12
+    CONTROL         "Poly Aftertouch",IDC_FILTER_POLY_AFTERTOUCH,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,429,7,82,12
+    CONTROL         "Sustain",IDC_FILTER_SUSTAIN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,514,7,50,12
+    CONTROL         "SysEx",IDC_FILTER_SYSEX,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,23,45,12
+    CONTROL         "Output",IDC_FILTER_OUTPUT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,65,23,48,12
+    CONTROL         "Warnings",IDC_FILTER_WARNINGS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,125,23,58,12
+    CONTROL         "Errors",IDC_FILTER_ERRORS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,23,44,12
+    PUSHBUTTON      "Clear",IDC_MONITOR_CLEAR,650,6,47,16
+    PUSHBUTTON      "Save",IDC_MONITOR_SAVE,703,6,47,16
+    CONTROL         "",IDC_MONITOR_HEADER,"RICHEDIT50W",WS_BORDER | 0x884,8,42,744,11
+    CONTROL         "",IDC_MONITOR_LOG,"RICHEDIT50W",WS_BORDER | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP | 0x8c4,8,56,744,351
+    CONTROL         "",IDC_MONITOR_STATUS,"msctls_statusbar32",0x100,0,412,760,18
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_APP_ICON            ICON                    "MidiToRblx.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "MidiToRblx"
+            VALUE "FileDescription", "Low-latency MIDI to Roblox keyboard bridge"
+            VALUE "FileVersion", "1.0.0"
+            VALUE "InternalName", "MidiToRblx.exe"
+            VALUE "OriginalFilename", "MidiToRblx.exe"
+            VALUE "ProductName", "MidiToRblx"
+            VALUE "ProductVersion", "1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_MAIN_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 9
+        RIGHTMARGIN, 291
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 294
+    END
+
+    IDD_DEBUG_MONITOR, DIALOG
+    BEGIN
+        LEFTMARGIN, 8
+        RIGHTMARGIN, 752
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 423
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_MAIN_DIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+IDD_DEBUG_MONITOR AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // Anglais (États-Unis) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Français (France) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_FRA)
+LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "Resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#define APSTUDIO_READONLY_SYMBOLS\r\n"
+    "#include ""winres.h""\r\n"
+    "#undef APSTUDIO_READONLY_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+#endif    // Français (France) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

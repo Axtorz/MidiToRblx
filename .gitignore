@@ -1,0 +1,11 @@
+.vs/
+**/.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.db-shm
+*.VC.db-wal
+*.VC.opendb
+*.sln.docstates
+*.ipch
+*.aps

@@ -1,0 +1,11 @@
+mettre genre un boutn monitor pour monitor les events midi pour debug ou quoi, genre ca ouvre dans un term style midi ox.
+normalement c pas exclusive mais ptetre mettre un pass through ou un machin du genre
+peut etre plus tard un piano ou on voit les notes style miditoqwerty, ptetre un convertisseur qwerty d'ailleurs.
+faire une belle ui en dark mode.
+mettre des credits, un mode RGB comme sur miditoqwerty
+et aussi faire un beau readme
+notes par seconde
+ptetre velocity curve en mode soft hard ou linear avec des presets
+remplir les credits
+transposition, octave duplication, octave shift, delay (reglage du nombre de répétitions, et du temps entre chaque repet)
+mettre une check box pour cocher si on veut la velocity et si c décoché mettre un truc pour mettre la velo qu'on veut entre 0 et 127
