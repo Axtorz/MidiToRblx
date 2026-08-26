@@ -93,7 +93,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>comctl32.lib;comdlg32.lib;shell32.lib;winmm.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>comctl32.lib;comdlg32.lib;gdiplus.lib;ole32.lib;shell32.lib;winmm.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -115,7 +115,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>comctl32.lib;comdlg32.lib;shell32.lib;winmm.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>comctl32.lib;comdlg32.lib;gdiplus.lib;ole32.lib;shell32.lib;winmm.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -138,6 +138,8 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="MidiToRblx.ico" />
+    <Image Include="metal.jpg" />
+    <Image Include="wood.jpg" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="app.manifest" />

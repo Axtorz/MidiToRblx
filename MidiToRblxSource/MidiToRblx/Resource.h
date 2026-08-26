@@ -5,6 +5,8 @@
 #define IDI_APP_ICON                    101
 #define IDD_MAIN_DIALOG                 102
 #define IDD_DEBUG_MONITOR               200
+#define IDR_WOOD_TEXTURE                204
+#define IDR_METAL_TEXTURE               205
 #define IDC_INPUT_DEVICES               1001
 #define IDC_REFRESH_INPUTS              1002
 #define IDC_CONNECT_INPUT               1003
@@ -42,25 +44,33 @@
 #define IDC_FILTER_ERRORS               2022
 #define TRANSPOSE_CONTROL               2023
 #define TRANSPOSE_CONTROL2              2024
+#define OCTAVE_DUP_CONTROL              2024
 #define LINKBOTTOM                      2025
 #define TRANSPOSE_CONTROL3              2025
+#define OCTAVE_SHIFT_CONTROL            2025
 #define IDC_RADIO1                      2026
 #define IDC_EDIT1                       2027
 #define IDC_RICHEDIT22                  2028
+#define TRANSPOSE_RICH                  2028
 #define IDC_SYSLINK1                    2029
 #define IDC_RICHEDIT23                  2030
 #define IDC_RICHEDIT24                  2031
+#define OCTAVE_SHIFT_RICH               2031
 #define IDC_CHECK1                      2032
+#define RGB_MODE_CHECK                  2032
 #define IDC_CHECK2                      2033
+#define M2Q_MODE_CHECK                  2033
 #define IDC_CHECK3                      2034
+#define MIDICONNECT_CHECK               2034
+#define NPS_LABEL                       2035
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        204
+#define _APS_NEXT_RESOURCE_VALUE        206
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         2033
+#define _APS_NEXT_CONTROL_VALUE         2036
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

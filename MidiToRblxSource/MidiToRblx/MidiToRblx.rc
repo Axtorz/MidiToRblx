@@ -48,28 +48,28 @@ BEGIN
     LTEXT           "00:00/00:00",IDC_FILE_DURATION,9,126,282,12
     CONTROL         "",IDC_FILE_PROGRESS,"msctls_progress32",PBS_SMOOTH | WS_BORDER,9,143,282,6
     LTEXT           "",IDC_STATUS_LABEL,9,158,282,13,SS_ENDELLIPSIS
-    PUSHBUTTON      "Live Monitor",MONITOR_BUTTON,27,190,50,14,BS_NOTIFY
+    PUSHBUTTON      "Debug",MONITOR_BUTTON,27,190,50,14,BS_NOTIFY
     GROUPBOX        "Settings",IDC_STATIC,9,176,282,118
     PUSHBUTTON      "Credits",CREDITS_BUTTON,222,190,50,14,BS_NOTIFY
     GROUPBOX        "Secret Sauce",IDC_STATIC,9,209,282,85
     CONTROL         "",TRANSPOSE_CONTROL,"msctls_updown32",UDS_ARROWKEYS,26,228,10,14
     LTEXT           "NPS:",IDC_STATIC,90,193,15,8
-    CONTROL         "",IDC_RICHEDIT22,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,228,40,14
+    CONTROL         "",TRANSPOSE_RICH,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,228,40,14
     CONTROL         "<a href=""https://github.com/Axtorz/MidiToRblx"">MidiToRblx by Axtorz</a>",IDC_SYSLINK1,
                     "SysLink",WS_TABSTOP,16,288,64,14
     GROUPBOX        "Transposition",IDC_STATIC,16,217,77,33
     GROUPBOX        "Octave Shift",IDC_STATIC,94,217,77,33
     GROUPBOX        "Octave Duplication",IDC_STATIC,16,253,77,33
     GROUPBOX        "Mode",IDC_STATIC,94,253,77,33
-    LTEXT           "0",IDC_STATIC,106,193,52,8
-    CONTROL         "",TRANSPOSE_CONTROL2,"msctls_updown32",UDS_ARROWKEYS,26,264,10,14
+    LTEXT           "0",NPS_LABEL,106,193,52,8
+    CONTROL         "",OCTAVE_DUP_CONTROL,"msctls_updown32",UDS_ARROWKEYS,26,264,10,14
     CONTROL         "",IDC_RICHEDIT23,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,264,40,14
-    CONTROL         "",TRANSPOSE_CONTROL3,"msctls_updown32",UDS_ARROWKEYS,104,229,10,14
-    CONTROL         "",IDC_RICHEDIT24,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,119,229,40,14
+    CONTROL         "",OCTAVE_SHIFT_CONTROL,"msctls_updown32",UDS_ARROWKEYS,104,229,10,14
+    CONTROL         "",OCTAVE_SHIFT_RICH,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,119,229,40,14
     GROUPBOX        "Echo/Delay",IDC_STATIC,173,217,110,69
-    CONTROL         "RGB MODE!!",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,48,10
-    CONTROL         "MidiToQwerty",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,260,56,10
-    CONTROL         "Midiconnect",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,272,48,10
+    CONTROL         "RGB MODE!!",RGB_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,48,10
+    CONTROL         "MidiToQwerty",M2Q_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,260,56,10
+    CONTROL         "Midiconnect",MIDICONNECT_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,272,48,10
 END
 
 IDD_DEBUG_MONITOR DIALOGEX 0, 0, 760, 430
@@ -106,6 +106,9 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDI_APP_ICON            ICON                    "MidiToRblx.ico"
+
+IDR_WOOD_TEXTURE        RCDATA                  "wood.jpg"
+IDR_METAL_TEXTURE       RCDATA                  "metal.jpg"
 
 
 /////////////////////////////////////////////////////////////////////////////

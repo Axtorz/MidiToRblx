@@ -60,6 +60,12 @@
     <Image Include="MidiToRblx.ico">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="metal.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="wood.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="app.manifest">
