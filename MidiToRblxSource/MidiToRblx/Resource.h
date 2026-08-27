@@ -1,4 +1,4 @@
-﻿//{{NO_DEPENDENCIES}}
+//{{NO_DEPENDENCIES}}
 // fichier Include Microsoft Visual C++.
 // Utilisé par MidiToRblx.rc
 //
@@ -54,6 +54,7 @@
 #define TRANSPOSE_RICH                  2028
 #define IDC_SYSLINK1                    2029
 #define IDC_RICHEDIT23                  2030
+#define OCTAVEDUP_RICH                  2030
 #define IDC_RICHEDIT24                  2031
 #define OCTAVE_SHIFT_RICH               2031
 #define IDC_CHECK1                      2032
@@ -63,6 +64,7 @@
 #define IDC_CHECK3                      2034
 #define MIDICONNECT_CHECK               2034
 #define NPS_LABEL                       2035
+#define GRPBOX_ECHODELAY                2036
 
 // Next default values for new objects
 // 
@@ -70,7 +72,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        206
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         2036
+#define _APS_NEXT_CONTROL_VALUE         2037
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -39,6 +39,12 @@ constexpr float kMetalTextureZoom = 0.50F;
 constexpr float kButtonCornerRadius = 6.0F;
 constexpr BYTE kButtonHoverAlpha = 52;
 constexpr wchar_t kButtonHoverProperty[] = L"MidiToRblx.TexturedButtonHover";
+constexpr int kMinimumTranspose = -127;
+constexpr int kMaximumTranspose = 127;
+constexpr int kMinimumOctaveShift = -10;
+constexpr int kMaximumOctaveShift = 10;
+constexpr int kMinimumOctaveDuplication = -10;
+constexpr int kMaximumOctaveDuplication = 10;
 
 class EmbeddedTexture {
 public:
@@ -787,8 +793,50 @@ private:
 struct EmitResult {
     std::string output;
     UINT submittedInputs = 0;
+    UINT requestedInputs = 0;
     DWORD error = ERROR_SUCCESS;
 };
+
+struct NoteTransformSettings {
+    std::atomic<int> transpose{0};
+    std::atomic<int> octaveShift{0};
+    std::atomic<int> octaveDuplication{0};
+};
+
+struct TransformedNotes {
+    std::array<std::uint8_t, 11> values{};
+    std::size_t count = 0;
+};
+
+constexpr TransformedNotes BuildTransformedNotes(std::uint8_t sourceNote,
+                                                  int transpose,
+                                                  int octaveShift,
+                                                  int octaveDuplication) {
+    const int duplication = std::clamp(
+        octaveDuplication, kMinimumOctaveDuplication,
+        kMaximumOctaveDuplication);
+    const int baseNote = static_cast<int>(sourceNote) + transpose + octaveShift * 12;
+    const int copies = duplication < 0 ? -duplication : duplication;
+    const int direction = duplication < 0 ? -1 : 1;
+    TransformedNotes notes;
+    for (int index = 0; index <= copies; ++index) {
+        const int transformed = baseNote + index * direction * 12;
+        if (transformed >= 0 && transformed <= 127) {
+            notes.values[notes.count++] = static_cast<std::uint8_t>(transformed);
+        }
+    }
+    return notes;
+}
+
+static_assert([] {
+    const auto notes = BuildTransformedNotes(60, 0, 0, 1);
+    return notes.count == 2 && notes.values[0] == 60 && notes.values[1] == 72;
+}());
+
+static_assert([] {
+    const auto notes = BuildTransformedNotes(60, 1, 1, -1);
+    return notes.count == 2 && notes.values[0] == 73 && notes.values[1] == 61;
+}());
 
 std::wstring WinMmError(MMRESULT result) {
     std::array<wchar_t, MAXERRORLENGTH> text{};
@@ -844,6 +892,7 @@ public:
         SetLastError(ERROR_SUCCESS);
         EmitResult result;
         result.output = protocol::Format(identifier, value);
+        result.requestedInputs = static_cast<UINT>(inputs.size());
         result.submittedInputs =
             SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
         if (result.submittedInputs != inputs.size()) {
@@ -888,9 +937,83 @@ private:
     }
 };
 
+class TransformingKeyEmitter {
+public:
+    explicit TransformingKeyEmitter(NoteTransformSettings& settings)
+        : settings_(settings) {}
+
+    EmitResult SendEvent(midi::EventKind kind, std::uint8_t channel,
+                         std::uint8_t data1, std::uint8_t data2) {
+        const bool noteOn = kind == midi::EventKind::NoteOn && data2 != 0;
+        const bool noteOff = kind == midi::EventKind::NoteOff ||
+                             (kind == midi::EventKind::NoteOn && data2 == 0);
+        if (!noteOn && !noteOff) {
+            return KeyEmitter::SendEvent(kind, data1, data2);
+        }
+
+        const std::size_t key =
+            static_cast<std::size_t>(channel & 0x0FU) * 128U + data1;
+        TransformedNotes notes;
+        if (noteOn) {
+            notes = BuildNotes(data1);
+            {
+                std::lock_guard lock(activeNotesMutex_);
+                activeNotes_[key].push_back(notes);
+            }
+            return SendNotes(notes, data2);
+        }
+
+        {
+            std::lock_guard lock(activeNotesMutex_);
+            auto& active = activeNotes_[key];
+            if (!active.empty()) {
+                notes = active.back();
+                active.pop_back();
+            } else {
+                notes = BuildNotes(data1);
+            }
+        }
+        return SendNotes(notes, 0);
+    }
+
+private:
+    TransformedNotes BuildNotes(std::uint8_t sourceNote) const {
+        const int transpose = settings_.transpose.load(std::memory_order_relaxed);
+        const int octaveShift =
+            settings_.octaveShift.load(std::memory_order_relaxed);
+        const int duplication =
+            settings_.octaveDuplication.load(std::memory_order_relaxed);
+        return BuildTransformedNotes(sourceNote, transpose, octaveShift,
+                                     duplication);
+    }
+
+    static void Merge(EmitResult& destination, EmitResult source) {
+        destination.output += source.output;
+        destination.submittedInputs += source.submittedInputs;
+        destination.requestedInputs += source.requestedInputs;
+        if (destination.error == ERROR_SUCCESS && source.error != ERROR_SUCCESS) {
+            destination.error = source.error;
+        }
+    }
+
+    static EmitResult SendNotes(const TransformedNotes& notes,
+                                std::uint8_t velocity) {
+        EmitResult result;
+        for (std::size_t index = 0; index < notes.count; ++index) {
+            Merge(result, KeyEmitter::Send(notes.values[index], velocity));
+        }
+        return result;
+    }
+
+    NoteTransformSettings& settings_;
+    std::mutex activeNotesMutex_;
+    std::array<std::vector<TransformedNotes>, 16U * 128U> activeNotes_{};
+};
+
 class MidiInput {
 public:
-    explicit MidiInput(DebugMonitor& monitor) : monitor_(monitor) {}
+    MidiInput(DebugMonitor& monitor, NoteTransformSettings& settings)
+        : monitor_(monitor), keyEmitter_(settings) {}
     MidiInput(const MidiInput&) = delete;
     MidiInput& operator=(const MidiInput&) = delete;
 
@@ -1000,13 +1123,16 @@ private:
         if (!invalid) {
             switch (status & 0xF0U) {
                 case 0x80U:
-                    emitted = KeyEmitter::SendEvent(midi::EventKind::NoteOff, data1, data2);
+                    emitted = keyEmitter_.SendEvent(
+                        midi::EventKind::NoteOff, status & 0x0FU, data1, data2);
                     break;
                 case 0x90U:
-                    emitted = KeyEmitter::SendEvent(midi::EventKind::NoteOn, data1, data2);
+                    emitted = keyEmitter_.SendEvent(
+                        midi::EventKind::NoteOn, status & 0x0FU, data1, data2);
                     break;
                 case 0xB0U:
-                    emitted = KeyEmitter::SendEvent(midi::EventKind::ControlChange, data1, data2);
+                    emitted = keyEmitter_.SendEvent(
+                        midi::EventKind::ControlChange, status & 0x0FU, data1, data2);
                     break;
                 default:
                     break;
@@ -1034,7 +1160,8 @@ private:
         if (emitted.error != ERROR_SUCCESS) {
             monitor_.RecordError(L"SendInput failed after " +
                                  std::to_wstring(emitted.submittedInputs) +
-                                 L" of 10 input actions. Windows error " +
+                                 L" of " + std::to_wstring(emitted.requestedInputs) +
+                                 L" input actions. Windows error " +
                                  std::to_wstring(emitted.error) + L".");
         }
     }
@@ -1092,6 +1219,7 @@ private:
     }
 
     DebugMonitor& monitor_;
+    TransformingKeyEmitter keyEmitter_;
     HMIDIIN handle_ = nullptr;
     UINT deviceId_ = 0;
     std::array<LongBuffer, 4> longBuffers_{};
@@ -1101,7 +1229,8 @@ private:
 class Application {
 public:
     explicit Application(HINSTANCE instance)
-        : instance_(instance), texturedUi_(instance), monitor_(instance), midiInput_(monitor_) {}
+        : instance_(instance), texturedUi_(instance), monitor_(instance),
+          midiInput_(monitor_, transformSettings_), playbackEmitter_(transformSettings_) {}
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
 
@@ -1216,6 +1345,14 @@ private:
         progress_ = GetDlgItem(window_, IDC_FILE_PROGRESS);
         statusLabel_ = GetDlgItem(window_, IDC_STATUS_LABEL);
 
+        InitializeTransformControl(TRANSPOSE_CONTROL, TRANSPOSE_RICH,
+                                   kMinimumTranspose, kMaximumTranspose);
+        InitializeTransformControl(OCTAVE_SHIFT_CONTROL, OCTAVE_SHIFT_RICH,
+                                   kMinimumOctaveShift, kMaximumOctaveShift);
+        InitializeTransformControl(OCTAVE_DUP_CONTROL, OCTAVEDUP_RICH,
+                                   kMinimumOctaveDuplication,
+                                   kMaximumOctaveDuplication);
+
         texturedUi_.Prepare(window_);
         if (!texturedUi_.IsReady()) {
             MessageBoxW(window_, L"The embedded interface textures could not be loaded.",
@@ -1255,7 +1392,38 @@ private:
     }
 
     bool OnNotify(const NMHDR* notification) {
-        if (notification == nullptr || notification->idFrom != IDC_SYSLINK1 ||
+        if (notification == nullptr) {
+            return false;
+        }
+        if (notification->code == UDN_DELTAPOS) {
+            const auto* change = reinterpret_cast<const NMUPDOWN*>(notification);
+            switch (notification->idFrom) {
+                case TRANSPOSE_CONTROL:
+                    ApplyTransformDelta(*change, TRANSPOSE_CONTROL, TRANSPOSE_RICH,
+                                        kMinimumTranspose, kMaximumTranspose,
+                                        transformSettings_.transpose);
+                    SetWindowLongPtrW(window_, DWLP_MSGRESULT, TRUE);
+                    return true;
+                case OCTAVE_SHIFT_CONTROL:
+                    ApplyTransformDelta(*change, OCTAVE_SHIFT_CONTROL,
+                                        OCTAVE_SHIFT_RICH, kMinimumOctaveShift,
+                                        kMaximumOctaveShift,
+                                        transformSettings_.octaveShift);
+                    SetWindowLongPtrW(window_, DWLP_MSGRESULT, TRUE);
+                    return true;
+                case OCTAVE_DUP_CONTROL:
+                    ApplyTransformDelta(*change, OCTAVE_DUP_CONTROL,
+                                        OCTAVEDUP_RICH,
+                                        kMinimumOctaveDuplication,
+                                        kMaximumOctaveDuplication,
+                                        transformSettings_.octaveDuplication);
+                    SetWindowLongPtrW(window_, DWLP_MSGRESULT, TRUE);
+                    return true;
+                default:
+                    break;
+            }
+        }
+        if (notification->idFrom != IDC_SYSLINK1 ||
             (notification->code != NM_CLICK && notification->code != NM_RETURN)) {
             return false;
         }
@@ -1272,6 +1440,37 @@ private:
             monitor_.RecordInformation(L"Opened https://github.com/Axtorz/MidiToRblx.");
         }
         return true;
+    }
+
+    static std::wstring FormatSignedValue(int value) {
+        if (value > 0) {
+            return L"+" + std::to_wstring(value);
+        }
+        return std::to_wstring(value);
+    }
+
+    void InitializeTransformControl(int controlId, int displayId,
+                                    int minimum, int maximum) const {
+        HWND control = GetDlgItem(window_, controlId);
+        HWND display = GetDlgItem(window_, displayId);
+        SendMessageW(display, EM_SETREADONLY, TRUE, 0);
+        SetWindowTextW(display, L"0");
+        SendMessageW(control, UDM_SETBUDDY,
+                     reinterpret_cast<WPARAM>(display), 0);
+        SendMessageW(control, UDM_SETRANGE32, minimum, maximum);
+        SendMessageW(control, UDM_SETPOS32, 0, 0);
+    }
+
+    void ApplyTransformDelta(const NMUPDOWN& change, int controlId,
+                             int displayId, int minimum, int maximum,
+                             std::atomic<int>& setting) const {
+        const int value = std::clamp(
+            setting.load(std::memory_order_relaxed) + change.iDelta,
+            minimum, maximum);
+        setting.store(value, std::memory_order_relaxed);
+        const std::wstring text = FormatSignedValue(value);
+        SetWindowTextW(GetDlgItem(window_, displayId), text.c_str());
+        SendMessageW(GetDlgItem(window_, controlId), UDM_SETPOS32, 0, value);
     }
 
     void OnCommand(int id, int notification) {
@@ -1499,7 +1698,8 @@ private:
     void ProcessPlaybackEvent(const midi::Event& midiEvent) {
         const auto started = std::chrono::steady_clock::now();
         EmitResult emitted =
-            KeyEmitter::SendEvent(midiEvent.kind, midiEvent.data1, midiEvent.data2);
+            playbackEmitter_.SendEvent(midiEvent.kind, midiEvent.channel,
+                                       midiEvent.data1, midiEvent.data2);
         const auto completed = std::chrono::steady_clock::now();
         MonitorEvent event;
         event.timestamp = started;
@@ -1526,7 +1726,8 @@ private:
         if (emitted.error != ERROR_SUCCESS) {
             monitor_.RecordError(L"SendInput failed during MIDI file playback after " +
                                  std::to_wstring(emitted.submittedInputs) +
-                                 L" of 10 input actions. Windows error " +
+                                 L" of " + std::to_wstring(emitted.requestedInputs) +
+                                 L" input actions. Windows error " +
                                  std::to_wstring(emitted.error) + L".");
         }
     }
@@ -1787,9 +1988,11 @@ private:
     HWND progress_ = nullptr;
     HWND statusLabel_ = nullptr;
 
+    NoteTransformSettings transformSettings_;
     TexturedUi texturedUi_;
     DebugMonitor monitor_;
     MidiInput midiInput_;
+    TransformingKeyEmitter playbackEmitter_;
     std::vector<UINT> inputDeviceIds_;
 
     bool loading_ = false;
