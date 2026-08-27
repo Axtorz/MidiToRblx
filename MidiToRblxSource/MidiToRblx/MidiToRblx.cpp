@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <cwchar>
 #include <filesystem>
 #include <iomanip>
 #include <memory>
@@ -36,6 +37,8 @@ constexpr UINT kPlaybackFinishedMessage = WM_APP + 2;
 constexpr float kWoodTextureZoom = 0.35F;
 constexpr float kMetalTextureZoom = 0.50F;
 constexpr float kButtonCornerRadius = 6.0F;
+constexpr BYTE kButtonHoverAlpha = 52;
+constexpr wchar_t kButtonHoverProperty[] = L"MidiToRblx.TexturedButtonHover";
 
 class EmbeddedTexture {
 public:
@@ -111,7 +114,7 @@ public:
         return woodLoaded_ && metalLoaded_;
     }
 
-    void Prepare(HWND dialog) const {
+    void Prepare(HWND dialog) {
         for (const int id : kButtonIds) {
             HWND button = GetDlgItem(dialog, id);
             if (button == nullptr) {
@@ -125,8 +128,10 @@ public:
             SetWindowPos(button, nullptr, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                              SWP_FRAMECHANGED);
+            SetWindowSubclass(button, &TexturedUi::TexturedButtonProcedure, 4, 0);
         }
-        EnumChildWindows(dialog, &TexturedUi::PrepareTransparentControl, 0);
+        EnumChildWindows(dialog, &TexturedUi::PrepareControl,
+                         reinterpret_cast<LPARAM>(this));
         InvalidateRect(dialog, nullptr, TRUE);
     }
 
@@ -139,49 +144,84 @@ public:
         const Gdiplus::Rect bounds(client.left, client.top,
                                    client.right - client.left,
                                    client.bottom - client.top);
-        if (wood_.Get() != nullptr) {
-            DrawTexture(graphics, *wood_.Get(), bounds, kWoodTextureZoom);
-        } else {
-            Gdiplus::SolidBrush fallback(Gdiplus::Color(255, 93, 43, 22));
-            graphics.FillRectangle(&fallback, bounds);
+        DrawSurface(graphics, bounds);
+        graphics.Flush(Gdiplus::FlushIntentionSync);
+        for (HWND groupBox : groupBoxes_) {
+            DrawGroupBox(dialog, deviceContext, groupBox);
         }
     }
 
-    bool DrawButton(const DRAWITEMSTRUCT* item) const {
-        if (item == nullptr || item->CtlType != ODT_BUTTON ||
+    bool DrawControl(const DRAWITEMSTRUCT* item) const {
+        if (item == nullptr) {
+            return false;
+        }
+        if (item->CtlType != ODT_BUTTON ||
             !IsTexturedButton(static_cast<int>(item->CtlID))) {
             return false;
         }
-        const float width = static_cast<float>(item->rcItem.right - item->rcItem.left);
-        const float height = static_cast<float>(item->rcItem.bottom - item->rcItem.top);
-        if (width <= 1.0F || height <= 1.0F) {
+        const int pixelWidth = item->rcItem.right - item->rcItem.left;
+        const int pixelHeight = item->rcItem.bottom - item->rcItem.top;
+        if (pixelWidth <= 1 || pixelHeight <= 1) {
             return true;
         }
+        HDC drawingContext = item->hDC;
+        HDC memoryContext = CreateCompatibleDC(item->hDC);
+        HBITMAP memoryBitmap = nullptr;
+        HGDIOBJ previousBitmap = nullptr;
+        RECT drawingBounds = item->rcItem;
+        if (memoryContext != nullptr) {
+            memoryBitmap = CreateCompatibleBitmap(item->hDC, pixelWidth, pixelHeight);
+            if (memoryBitmap != nullptr) {
+                previousBitmap = SelectObject(memoryContext, memoryBitmap);
+                if (previousBitmap != nullptr && previousBitmap != HGDI_ERROR) {
+                    drawingContext = memoryContext;
+                    drawingBounds = RECT{0, 0, pixelWidth, pixelHeight};
+                } else {
+                    DeleteObject(memoryBitmap);
+                    memoryBitmap = nullptr;
+                    DeleteDC(memoryContext);
+                    memoryContext = nullptr;
+                }
+            } else {
+                DeleteDC(memoryContext);
+                memoryContext = nullptr;
+            }
+        }
+        const float width = static_cast<float>(pixelWidth);
+        const float height = static_cast<float>(pixelHeight);
+        DrawControlBackground(item->hwndItem, drawingContext);
         const float dpiScale = static_cast<float>(GetDpiForWindow(item->hwndItem)) / 96.0F;
         const float radius = std::min(kButtonCornerRadius * dpiScale, height * 0.45F);
+        const bool hovered =
+            GetPropW(item->hwndItem, kButtonHoverProperty) != nullptr;
         const Gdiplus::RectF shapeRect(
-            static_cast<float>(item->rcItem.left) + 0.75F,
-            static_cast<float>(item->rcItem.top) + 0.75F,
+            static_cast<float>(drawingBounds.left) + 0.75F,
+            static_cast<float>(drawingBounds.top) + 0.75F,
             width - 1.5F, height - 1.5F);
         Gdiplus::GraphicsPath path;
         AddRoundedRectangle(path, shapeRect, radius);
 
         {
-            Gdiplus::Graphics graphics(item->hDC);
+            Gdiplus::Graphics graphics(drawingContext);
             graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
             graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
             graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
             const Gdiplus::GraphicsState state = graphics.Save();
             graphics.SetClip(&path);
             const Gdiplus::Rect textureBounds(
-                item->rcItem.left, item->rcItem.top,
-                item->rcItem.right - item->rcItem.left,
-                item->rcItem.bottom - item->rcItem.top);
+                drawingBounds.left, drawingBounds.top,
+                drawingBounds.right - drawingBounds.left,
+                drawingBounds.bottom - drawingBounds.top);
             if (metal_.Get() != nullptr) {
                 DrawTexture(graphics, *metal_.Get(), textureBounds, kMetalTextureZoom);
             } else {
                 Gdiplus::SolidBrush fallback(Gdiplus::Color(255, 190, 194, 196));
                 graphics.FillPath(&fallback, &path);
+            }
+            if (hovered && (item->itemState & ODS_DISABLED) == 0) {
+                Gdiplus::SolidBrush hoverOverlay(
+                    Gdiplus::Color(kButtonHoverAlpha, 35, 145, 235));
+                graphics.FillPath(&hoverOverlay, &path);
             }
             if ((item->itemState & ODS_SELECTED) != 0) {
                 Gdiplus::SolidBrush pressed(Gdiplus::Color(70, 0, 0, 0));
@@ -195,6 +235,8 @@ public:
             const Gdiplus::Color borderColor =
                 (item->itemState & ODS_FOCUS) != 0
                     ? Gdiplus::Color(255, 225, 225, 225)
+                    : hovered && (item->itemState & ODS_DISABLED) == 0
+                          ? Gdiplus::Color(255, 92, 176, 235)
                     : Gdiplus::Color(255, 105, 108, 110);
             Gdiplus::Pen border(borderColor, 1.5F * dpiScale);
             border.SetAlignment(Gdiplus::PenAlignmentInset);
@@ -203,32 +245,39 @@ public:
 
         std::array<wchar_t, 256> text{};
         GetWindowTextW(item->hwndItem, text.data(), static_cast<int>(text.size()));
-        RECT textBounds = item->rcItem;
+        RECT textBounds = drawingBounds;
         if ((item->itemState & ODS_SELECTED) != 0) {
             const int offset = std::max(1, static_cast<int>(std::lround(dpiScale)));
             OffsetRect(&textBounds, offset, offset);
         }
-        const int previousMode = SetBkMode(item->hDC, TRANSPARENT);
+        const int previousMode = SetBkMode(drawingContext, TRANSPARENT);
         const COLORREF previousColor = SetTextColor(
-            item->hDC,
+            drawingContext,
             (item->itemState & ODS_DISABLED) != 0 ? RGB(105, 105, 105)
                                                   : RGB(24, 27, 29));
         const HFONT font = reinterpret_cast<HFONT>(
             SendMessageW(item->hwndItem, WM_GETFONT, 0, 0));
         const HGDIOBJ previousFont =
-            font == nullptr ? nullptr : SelectObject(item->hDC, font);
-        DrawTextW(item->hDC, text.data(), -1, &textBounds,
+            font == nullptr ? nullptr : SelectObject(drawingContext, font);
+        DrawTextW(drawingContext, text.data(), -1, &textBounds,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         if (previousFont != nullptr) {
-            SelectObject(item->hDC, previousFont);
+            SelectObject(drawingContext, previousFont);
         }
-        SetTextColor(item->hDC, previousColor);
-        SetBkMode(item->hDC, previousMode);
+        SetTextColor(drawingContext, previousColor);
+        SetBkMode(drawingContext, previousMode);
         if ((item->itemState & ODS_FOCUS) != 0 &&
             (item->itemState & ODS_NOFOCUSRECT) == 0) {
-            RECT focus = item->rcItem;
+            RECT focus = drawingBounds;
             InflateRect(&focus, -4, -4);
-            DrawFocusRect(item->hDC, &focus);
+            DrawFocusRect(drawingContext, &focus);
+        }
+        if (memoryContext != nullptr) {
+            BitBlt(item->hDC, item->rcItem.left, item->rcItem.top,
+                   pixelWidth, pixelHeight, memoryContext, 0, 0, SRCCOPY);
+            SelectObject(memoryContext, previousBitmap);
+            DeleteObject(memoryBitmap);
+            DeleteDC(memoryContext);
         }
         return true;
     }
@@ -257,24 +306,418 @@ private:
                kButtonIds.end();
     }
 
-    static BOOL CALLBACK PrepareTransparentControl(HWND control, LPARAM) {
+    static LRESULT CALLBACK TexturedButtonProcedure(HWND control, UINT message,
+                                                    WPARAM wParam, LPARAM lParam,
+                                                    UINT_PTR, DWORD_PTR) {
+        if (message == WM_ERASEBKGND) {
+            return TRUE;
+        }
+        if (message == WM_MOUSEMOVE &&
+            GetPropW(control, kButtonHoverProperty) == nullptr) {
+            TRACKMOUSEEVENT tracking{
+                sizeof(tracking),
+                TME_LEAVE,
+                control,
+                0,
+            };
+            if (TrackMouseEvent(&tracking)) {
+                SetPropW(control, kButtonHoverProperty,
+                         reinterpret_cast<HANDLE>(static_cast<UINT_PTR>(1)));
+                InvalidateRect(control, nullptr, FALSE);
+            }
+        }
+        if (message == WM_MOUSELEAVE) {
+            if (RemovePropW(control, kButtonHoverProperty) != nullptr) {
+                InvalidateRect(control, nullptr, FALSE);
+            }
+        }
+        if (message == WM_NCDESTROY) {
+            RemovePropW(control, kButtonHoverProperty);
+            RemoveWindowSubclass(control,
+                                 &TexturedUi::TexturedButtonProcedure, 4);
+        }
+        return DefSubclassProc(control, message, wParam, lParam);
+    }
+
+    void DrawSurface(Gdiplus::Graphics& graphics,
+                     const Gdiplus::Rect& bounds) const {
+        if (wood_.Get() != nullptr) {
+            DrawTexture(graphics, *wood_.Get(), bounds, kWoodTextureZoom);
+        } else {
+            Gdiplus::SolidBrush fallback(Gdiplus::Color(255, 93, 43, 22));
+            graphics.FillRectangle(&fallback, bounds);
+        }
+    }
+
+    void DrawControlBackground(HWND control, HDC deviceContext) const {
+        HWND parent = GetParent(control);
+        if (parent == nullptr) {
+            return;
+        }
+        RECT parentClient{};
+        GetClientRect(parent, &parentClient);
+        POINT origin{};
+        MapWindowPoints(control, parent, &origin, 1);
+        Gdiplus::Graphics graphics(deviceContext);
+        graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+        graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+        const Gdiplus::GraphicsState state = graphics.Save();
+        graphics.TranslateTransform(static_cast<Gdiplus::REAL>(-origin.x),
+                                    static_cast<Gdiplus::REAL>(-origin.y));
+        const Gdiplus::Rect bounds(parentClient.left, parentClient.top,
+                                   parentClient.right - parentClient.left,
+                                   parentClient.bottom - parentClient.top);
+        DrawSurface(graphics, bounds);
+        graphics.Restore(state);
+    }
+
+    static void DrawGroupBox(HWND dialog, HDC deviceContext, HWND groupBox) {
+        RECT bounds{};
+        GetWindowRect(groupBox, &bounds);
+        MapWindowPoints(HWND_DESKTOP, dialog,
+                        reinterpret_cast<POINT*>(&bounds), 2);
+        std::array<wchar_t, 256> text{};
+        GetWindowTextW(groupBox, text.data(), static_cast<int>(text.size()));
+        const HFONT font = reinterpret_cast<HFONT>(
+            SendMessageW(groupBox, WM_GETFONT, 0, 0));
+        const HGDIOBJ previousFont =
+            font == nullptr ? nullptr : SelectObject(deviceContext, font);
+        SIZE textSize{};
+        GetTextExtentPoint32W(deviceContext, text.data(),
+                              static_cast<int>(wcslen(text.data())), &textSize);
+        const float dpiScale = static_cast<float>(GetDpiForWindow(groupBox)) / 96.0F;
+        const float left = static_cast<float>(bounds.left) + 0.75F;
+        const float right = static_cast<float>(bounds.right) - 0.75F;
+        const float top = static_cast<float>(bounds.top) +
+                          std::max(4.0F, textSize.cy * 0.5F);
+        const float bottom = static_cast<float>(bounds.bottom) - 0.75F;
+        const float textLeft = left + 8.0F * dpiScale;
+        const float gapLeft = textLeft - 4.0F * dpiScale;
+        const float gapRight = textLeft + textSize.cx + 4.0F * dpiScale;
+        {
+            Gdiplus::Graphics graphics(deviceContext);
+            graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+            Gdiplus::Pen border(Gdiplus::Color(235, 238, 238, 238),
+                                std::max(1.0F, dpiScale));
+            graphics.DrawLine(&border, left, top, std::max(left, gapLeft), top);
+            graphics.DrawLine(&border, std::min(right, gapRight), top, right, top);
+            graphics.DrawLine(&border, right, top, right, bottom);
+            graphics.DrawLine(&border, right, bottom, left, bottom);
+            graphics.DrawLine(&border, left, bottom, left, top);
+        }
+        RECT textBounds{
+            static_cast<LONG>(std::lround(textLeft)),
+            bounds.top,
+            bounds.right,
+            bounds.top + textSize.cy,
+        };
+        const int previousMode = SetBkMode(deviceContext, TRANSPARENT);
+        const COLORREF previousColor = SetTextColor(deviceContext, RGB(247, 239, 226));
+        DrawTextW(deviceContext, text.data(), -1, &textBounds,
+                  DT_LEFT | DT_TOP | DT_SINGLELINE);
+        SetTextColor(deviceContext, previousColor);
+        SetBkMode(deviceContext, previousMode);
+        if (previousFont != nullptr) {
+            SelectObject(deviceContext, previousFont);
+        }
+    }
+
+    void DrawStaticControl(HWND control, HDC deviceContext) const {
+        DrawControlBackground(control, deviceContext);
+        RECT bounds{};
+        GetClientRect(control, &bounds);
+        const LONG_PTR style = GetWindowLongPtrW(control, GWL_STYLE);
+        const LONG_PTR type = style & SS_TYPEMASK;
+        if (type == SS_ETCHEDHORZ) {
+            const float middle = (bounds.bottom - bounds.top) * 0.5F;
+            Gdiplus::Graphics graphics(deviceContext);
+            Gdiplus::Pen shadow(Gdiplus::Color(185, 70, 70, 70), 1.0F);
+            Gdiplus::Pen light(Gdiplus::Color(225, 238, 238, 238), 1.0F);
+            graphics.DrawLine(&shadow, static_cast<float>(bounds.left), middle,
+                              static_cast<float>(bounds.right), middle);
+            graphics.DrawLine(&light, static_cast<float>(bounds.left), middle + 1.0F,
+                              static_cast<float>(bounds.right), middle + 1.0F);
+            return;
+        }
+        std::array<wchar_t, 1024> text{};
+        GetWindowTextW(control, text.data(), static_cast<int>(text.size()));
+        UINT format = DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX;
+        if (type == SS_CENTER) {
+            format |= DT_CENTER;
+        } else if (type == SS_RIGHT) {
+            format |= DT_RIGHT;
+        } else {
+            format |= DT_LEFT;
+        }
+        if ((style & SS_ENDELLIPSIS) != 0) {
+            format |= DT_END_ELLIPSIS;
+        }
+        const HFONT font = reinterpret_cast<HFONT>(
+            SendMessageW(control, WM_GETFONT, 0, 0));
+        const HGDIOBJ previousFont =
+            font == nullptr ? nullptr : SelectObject(deviceContext, font);
+        const int previousMode = SetBkMode(deviceContext, TRANSPARENT);
+        const COLORREF previousColor =
+            SetTextColor(deviceContext, RGB(247, 239, 226));
+        DrawTextW(deviceContext, text.data(), -1, &bounds, format);
+        SetTextColor(deviceContext, previousColor);
+        SetBkMode(deviceContext, previousMode);
+        if (previousFont != nullptr) {
+            SelectObject(deviceContext, previousFont);
+        }
+    }
+
+    static LRESULT CALLBACK StaticControlProcedure(HWND control, UINT message,
+                                                   WPARAM wParam, LPARAM lParam,
+                                                   UINT_PTR, DWORD_PTR data) {
+        auto* self = reinterpret_cast<TexturedUi*>(data);
+        if (message == WM_ERASEBKGND) {
+            return TRUE;
+        }
+        if (message == WM_PAINT && self != nullptr) {
+            PAINTSTRUCT paint{};
+            HDC deviceContext = BeginPaint(control, &paint);
+            self->DrawStaticControl(control, deviceContext);
+            EndPaint(control, &paint);
+            return 0;
+        }
+        if (message == WM_PRINTCLIENT && self != nullptr) {
+            self->DrawStaticControl(control, reinterpret_cast<HDC>(wParam));
+            return 0;
+        }
+        if (message == WM_NCDESTROY) {
+            RemoveWindowSubclass(control,
+                                 &TexturedUi::StaticControlProcedure, 5);
+        }
+        const LRESULT result = DefSubclassProc(control, message, wParam, lParam);
+        if (message == WM_SETTEXT || message == WM_SETFONT ||
+            message == WM_ENABLE) {
+            RedrawWindow(control, nullptr, nullptr,
+                         RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
+        }
+        return result;
+    }
+
+    void DrawSysLink(HWND control, HDC deviceContext) const {
+        DrawControlBackground(control, deviceContext);
+        RECT bounds{};
+        GetClientRect(control, &bounds);
+        const HFONT baseFont = reinterpret_cast<HFONT>(
+            SendMessageW(control, WM_GETFONT, 0, 0));
+        LOGFONTW description{};
+        HFONT linkFont = nullptr;
+        if (baseFont != nullptr &&
+            GetObjectW(baseFont, sizeof(description), &description) == sizeof(description)) {
+            description.lfUnderline = TRUE;
+            linkFont = CreateFontIndirectW(&description);
+        }
+        const HFONT selectedFont = linkFont != nullptr ? linkFont : baseFont;
+        const HGDIOBJ previousFont = selectedFont == nullptr
+                                             ? nullptr
+                                             : SelectObject(deviceContext, selectedFont);
+        const int previousMode = SetBkMode(deviceContext, TRANSPARENT);
+        const COLORREF previousColor = SetTextColor(deviceContext, RGB(92, 183, 255));
+        DrawTextW(deviceContext, L"MidiToRblx by Axtorz", -1, &bounds,
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        if (GetFocus() == control) {
+            RECT focus = bounds;
+            InflateRect(&focus, -1, -1);
+            DrawFocusRect(deviceContext, &focus);
+        }
+        SetTextColor(deviceContext, previousColor);
+        SetBkMode(deviceContext, previousMode);
+        if (previousFont != nullptr) {
+            SelectObject(deviceContext, previousFont);
+        }
+        if (linkFont != nullptr) {
+            DeleteObject(linkFont);
+        }
+    }
+
+    static LRESULT CALLBACK SysLinkProcedure(HWND control, UINT message,
+                                             WPARAM wParam, LPARAM lParam,
+                                             UINT_PTR, DWORD_PTR data) {
+        auto* self = reinterpret_cast<TexturedUi*>(data);
+        if (message == WM_ERASEBKGND && self != nullptr) {
+            self->DrawControlBackground(control, reinterpret_cast<HDC>(wParam));
+            return TRUE;
+        }
+        if (message == WM_PAINT && self != nullptr) {
+            PAINTSTRUCT paint{};
+            HDC deviceContext = BeginPaint(control, &paint);
+            self->DrawSysLink(control, deviceContext);
+            EndPaint(control, &paint);
+            return 0;
+        }
+        if (message == WM_PRINTCLIENT && self != nullptr) {
+            self->DrawSysLink(control, reinterpret_cast<HDC>(wParam));
+            return 0;
+        }
+        if (message == WM_NCDESTROY) {
+            RemoveWindowSubclass(control, &TexturedUi::SysLinkProcedure, 1);
+        }
+        return DefSubclassProc(control, message, wParam, lParam);
+    }
+
+    void DrawCheckBox(HWND control, HDC deviceContext) const {
+        DrawControlBackground(control, deviceContext);
+        RECT client{};
+        GetClientRect(control, &client);
+        const UINT dpi = GetDpiForWindow(control);
+        const int boxSize = std::max(11, MulDiv(13, dpi, 96));
+        const int boxTop = client.top +
+                           std::max(0, (static_cast<int>(client.bottom) - boxSize) / 2);
+        RECT box{client.left, boxTop, client.left + boxSize, boxTop + boxSize};
+        const LRESULT state = SendMessageW(control, BM_GETCHECK, 0, 0);
+        {
+            Gdiplus::Graphics graphics(deviceContext);
+            graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+            const Gdiplus::RectF square(
+                static_cast<float>(box.left) + 0.5F,
+                static_cast<float>(box.top) + 0.5F,
+                static_cast<float>(box.right - box.left) - 1.0F,
+                static_cast<float>(box.bottom - box.top) - 1.0F);
+            Gdiplus::SolidBrush fill(IsWindowEnabled(control)
+                                         ? Gdiplus::Color(255, 245, 245, 245)
+                                         : Gdiplus::Color(255, 195, 195, 195));
+            graphics.FillRectangle(&fill, square);
+            Gdiplus::Pen border(Gdiplus::Color(255, 92, 95, 97), 1.0F);
+            graphics.DrawRectangle(&border, square);
+            if (state == BST_CHECKED) {
+                Gdiplus::Pen check(Gdiplus::Color(255, 32, 35, 37),
+                                   std::max(1.5F, dpi / 72.0F));
+                check.SetStartCap(Gdiplus::LineCapRound);
+                check.SetEndCap(Gdiplus::LineCapRound);
+                const std::array<Gdiplus::PointF, 3> points{
+                    Gdiplus::PointF(square.X + square.Width * 0.20F,
+                                    square.Y + square.Height * 0.53F),
+                    Gdiplus::PointF(square.X + square.Width * 0.43F,
+                                    square.Y + square.Height * 0.75F),
+                    Gdiplus::PointF(square.X + square.Width * 0.82F,
+                                    square.Y + square.Height * 0.26F),
+                };
+                graphics.DrawLines(&check, points.data(),
+                                   static_cast<INT>(points.size()));
+            } else if (state == BST_INDETERMINATE) {
+                Gdiplus::SolidBrush mark(Gdiplus::Color(255, 85, 88, 90));
+                const float inset = std::max(2.0F, square.Width * 0.27F);
+                graphics.FillRectangle(&mark,
+                                       square.X + inset,
+                                       square.Y + inset,
+                                       square.Width - inset * 2.0F,
+                                       square.Height - inset * 2.0F);
+            }
+        }
+        std::array<wchar_t, 256> text{};
+        GetWindowTextW(control, text.data(), static_cast<int>(text.size()));
+        RECT textBounds = client;
+        textBounds.left = box.right + std::max(3, MulDiv(4, dpi, 96));
+        const HFONT font = reinterpret_cast<HFONT>(
+            SendMessageW(control, WM_GETFONT, 0, 0));
+        const HGDIOBJ previousFont =
+            font == nullptr ? nullptr : SelectObject(deviceContext, font);
+        const int previousMode = SetBkMode(deviceContext, TRANSPARENT);
+        const COLORREF previousColor = SetTextColor(
+            deviceContext,
+            IsWindowEnabled(control) ? RGB(247, 239, 226) : RGB(165, 160, 153));
+        DrawTextW(deviceContext, text.data(), -1, &textBounds,
+                  DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        if (GetFocus() == control) {
+            RECT focus = textBounds;
+            SIZE textSize{};
+            GetTextExtentPoint32W(deviceContext, text.data(),
+                                  static_cast<int>(wcslen(text.data())), &textSize);
+            focus.right = std::min(focus.right, focus.left + textSize.cx + 2);
+            InflateRect(&focus, 1, -1);
+            DrawFocusRect(deviceContext, &focus);
+        }
+        SetTextColor(deviceContext, previousColor);
+        SetBkMode(deviceContext, previousMode);
+        if (previousFont != nullptr) {
+            SelectObject(deviceContext, previousFont);
+        }
+    }
+
+    static LRESULT CALLBACK CheckBoxProcedure(HWND control, UINT message,
+                                              WPARAM wParam, LPARAM lParam,
+                                              UINT_PTR, DWORD_PTR data) {
+        auto* self = reinterpret_cast<TexturedUi*>(data);
+        if (message == WM_ERASEBKGND) {
+            return TRUE;
+        }
+        if (message == WM_PAINT && self != nullptr) {
+            PAINTSTRUCT paint{};
+            HDC deviceContext = BeginPaint(control, &paint);
+            self->DrawCheckBox(control, deviceContext);
+            EndPaint(control, &paint);
+            return 0;
+        }
+        if (message == WM_PRINTCLIENT && self != nullptr) {
+            self->DrawCheckBox(control, reinterpret_cast<HDC>(wParam));
+            return 0;
+        }
+        if (message == WM_NCDESTROY) {
+            RemoveWindowSubclass(control, &TexturedUi::CheckBoxProcedure, 3);
+        }
+        const LRESULT result = DefSubclassProc(control, message, wParam, lParam);
+        if (message == BM_SETCHECK || message == WM_LBUTTONUP ||
+            message == WM_KEYUP || message == WM_SETFOCUS ||
+            message == WM_KILLFOCUS || message == WM_ENABLE) {
+            InvalidateRect(control, nullptr, FALSE);
+        }
+        return result;
+    }
+
+    static BOOL CALLBACK PrepareControl(HWND control, LPARAM data) {
+        auto* self = reinterpret_cast<TexturedUi*>(data);
         std::array<wchar_t, 32> className{};
         GetClassNameW(control, className.data(), static_cast<int>(className.size()));
         const bool sysLink = _wcsicmp(className.data(), L"SysLink") == 0;
-        bool transparent = _wcsicmp(className.data(), L"Static") == 0 || sysLink;
+        const bool staticControl = _wcsicmp(className.data(), L"Static") == 0;
+        bool transparent = staticControl;
+        if (staticControl && self != nullptr) {
+            const LONG_PTR extendedStyle = GetWindowLongPtrW(control, GWL_EXSTYLE);
+            SetWindowLongPtrW(control, GWL_EXSTYLE,
+                              extendedStyle &
+                                  ~static_cast<LONG_PTR>(WS_EX_TRANSPARENT));
+            SetWindowSubclass(control, &TexturedUi::StaticControlProcedure, 5,
+                              reinterpret_cast<DWORD_PTR>(self));
+            transparent = false;
+        }
         if (sysLink) {
             const LONG_PTR style = GetWindowLongPtrW(control, GWL_STYLE);
             SetWindowLongPtrW(control, GWL_STYLE, style | LWS_TRANSPARENT);
+            const LONG_PTR extendedStyle = GetWindowLongPtrW(control, GWL_EXSTYLE);
+            SetWindowLongPtrW(control, GWL_EXSTYLE,
+                              extendedStyle & ~static_cast<LONG_PTR>(WS_EX_TRANSPARENT));
             SetWindowPos(control, nullptr, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                              SWP_FRAMECHANGED);
+            SetWindowSubclass(control, &TexturedUi::SysLinkProcedure, 1,
+                              reinterpret_cast<DWORD_PTR>(self));
         }
         if (_wcsicmp(className.data(), L"Button") == 0) {
             const LONG_PTR type = GetWindowLongPtrW(control, GWL_STYLE) & BS_TYPEMASK;
-            transparent = type == BS_GROUPBOX || type == BS_CHECKBOX ||
-                          type == BS_AUTOCHECKBOX || type == BS_3STATE ||
-                          type == BS_AUTO3STATE || type == BS_RADIOBUTTON ||
-                          type == BS_AUTORADIOBUTTON;
+            const bool checkBox = type == BS_CHECKBOX || type == BS_AUTOCHECKBOX ||
+                                  type == BS_3STATE || type == BS_AUTO3STATE;
+            if (type == BS_GROUPBOX && self != nullptr) {
+                self->groupBoxes_.push_back(control);
+                ShowWindow(control, SW_HIDE);
+                transparent = false;
+            } else if (checkBox && self != nullptr) {
+                SetWindowTheme(control, L"", L"");
+                const LONG_PTR extendedStyle =
+                    GetWindowLongPtrW(control, GWL_EXSTYLE);
+                SetWindowLongPtrW(
+                    control, GWL_EXSTYLE,
+                    extendedStyle & ~static_cast<LONG_PTR>(WS_EX_TRANSPARENT));
+                SetWindowSubclass(control, &TexturedUi::CheckBoxProcedure, 3,
+                                  reinterpret_cast<DWORD_PTR>(self));
+                transparent = false;
+            } else {
+                transparent = type == BS_RADIOBUTTON ||
+                              type == BS_AUTORADIOBUTTON;
+            }
             if (transparent) {
                 SetWindowTheme(control, L"", L"");
             }
@@ -338,6 +781,7 @@ private:
     EmbeddedTexture metal_;
     bool woodLoaded_ = false;
     bool metalLoaded_ = false;
+    std::vector<HWND> groupBoxes_;
 };
 
 struct EmitResult {
@@ -723,7 +1167,7 @@ private:
                 texturedUi_.DrawBackground(window_, reinterpret_cast<HDC>(wParam));
                 return TRUE;
             case WM_DRAWITEM:
-                return texturedUi_.DrawButton(
+                return texturedUi_.DrawControl(
                            reinterpret_cast<const DRAWITEMSTRUCT*>(lParam))
                            ? TRUE
                            : FALSE;

@@ -56,7 +56,7 @@ BEGIN
     LTEXT           "NPS:",IDC_STATIC,90,193,15,8
     CONTROL         "",TRANSPOSE_RICH,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,41,228,40,14
     CONTROL         "<a href=""https://github.com/Axtorz/MidiToRblx"">MidiToRblx by Axtorz</a>",IDC_SYSLINK1,
-                    "SysLink",WS_TABSTOP,16,288,64,14
+                    "SysLink",WS_TABSTOP,16,286,64,13
     GROUPBOX        "Transposition",IDC_STATIC,16,217,77,33
     GROUPBOX        "Octave Shift",IDC_STATIC,94,217,77,33
     GROUPBOX        "Octave Duplication",IDC_STATIC,16,253,77,33
@@ -67,9 +67,9 @@ BEGIN
     CONTROL         "",OCTAVE_SHIFT_CONTROL,"msctls_updown32",UDS_ARROWKEYS,104,229,10,14
     CONTROL         "",OCTAVE_SHIFT_RICH,"RichEdit20W",ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP,119,229,40,14
     GROUPBOX        "Echo/Delay",IDC_STATIC,173,217,110,69
-    CONTROL         "RGB MODE!!",RGB_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,48,10
+    CONTROL         "RGB MODE!!",RGB_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,51,10
     CONTROL         "MidiToQwerty",M2Q_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,260,56,10
-    CONTROL         "Midiconnect",MIDICONNECT_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,272,48,10
+    CONTROL         "Midiconnect",MIDICONNECT_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,272,52,10
 END
 
 IDD_DEBUG_MONITOR DIALOGEX 0, 0, 760, 430
@@ -107,7 +107,14 @@ END
 // remains consistent on all systems.
 IDI_APP_ICON            ICON                    "MidiToRblx.ico"
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// RCDATA
+//
+
 IDR_WOOD_TEXTURE        RCDATA                  "wood.jpg"
+
 IDR_METAL_TEXTURE       RCDATA                  "metal.jpg"
 
 

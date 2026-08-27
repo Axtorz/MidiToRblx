@@ -77,7 +77,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>$(USERPROFILE)\.miditorblx\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>MidiToRblx</TargetName>
   </PropertyGroup>
 

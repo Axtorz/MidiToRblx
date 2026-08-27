@@ -1,4 +1,17 @@
 ﻿  MidiToRblx.cpp
   debug_monitor.cpp
+  midi_file.cpp
   Génération de code en cours...
-  MidiToRblx.vcxproj -> C:\Users\user\OneDrive\Bureau\1\Programmation\C++\MidiToRblx-cpp\MidiToRblxSource\MidiToRblx\bin\x64\Debug\MidiToRblx.exe
+C:\Users\user\OneDrive\Bureau\1\Programmation\C++\MidiToRblx-cpp\MidiToRblxSource\MidiToRblx\MidiToRblx.cpp : fatal  error C1083: Impossible d'ouvrir le fichier généré(e) par le compilateur : 'C:\Users\user\OneDrive\Bureau\1\Programmation\C++\MidiToRblx-cpp\MidiToRblxSource\MidiToRblx\obj\x64\Debug\MidiToRblx.obj' : Invalid argument
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003: Impossible d'exécuter la tâche exécutable spécifiée "CL.exe". System.IO.IOException: L’opération demandée n’a pu s’accomplir sur un fichier ayant une section mappée utilisateur ouverte.
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003: 
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.FileStream.Init(String path, FileMode mode, FileAccess access, Int32 rights, Boolean useRights, FileShare share, Int32 bufferSize, FileOptions options, SECURITY_ATTRIBUTES secAttrs, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share, Int32 bufferSize, FileOptions options, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.StreamWriter.CreateFile(String path, Boolean append, Boolean checkHost)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.StreamWriter..ctor(String path, Boolean append, Encoding encoding, Int32 bufferSize, Boolean checkHost)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à System.IO.File.InternalWriteAllText(String path, String contents, Encoding encoding, Boolean checkHost)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à Microsoft.Build.Utilities.CanonicalTrackedOutputFiles.SaveTlog(DependencyFilter includeInTLog)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à Microsoft.Build.CPPTasks.CL.PostExecuteTool(Int32 exitCode)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à Microsoft.Build.CPPTasks.TrackedVCToolTask.ExecuteTool(String pathToTool, String responseFileCommands, String commandLineCommands)
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(755,5): error MSB6003:    à Microsoft.Build.Utilities.ToolTask.Execute()
