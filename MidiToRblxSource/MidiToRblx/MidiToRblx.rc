@@ -31,6 +31,7 @@ IDD_MAIN_DIALOG DIALOGEX 0, 0, 300, 303
 STYLE DS_SETFONT | DS_MODALFRAME | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
 CAPTION "MidiToRblx"
+CLASS "MidiToRblx.MainDialog"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
     LTEXT           "Direct MIDI Input",IDC_STATIC,9,11,79,12
@@ -54,7 +55,7 @@ BEGIN
     GROUPBOX        "Secret Sauce",IDC_STATIC,9,209,282,85
     CONTROL         "",TRANSPOSE_CONTROL,"msctls_updown32",UDS_ARROWKEYS,26,228,10,14
     LTEXT           "NPS:",IDC_STATIC,90,193,15,8
-    CONTROL         "0",TRANSPOSE_RICH,"RichEdit20W",ES_AUTOHSCROLL | ES_READONLY | WS_BORDER | WS_TABSTOP,41,228,40,14
+    CONTROL         "0",TRANSPOSE_RICH,"RichEdit20W",WS_BORDER | WS_TABSTOP | 0x880,41,228,40,14
     CONTROL         "<a href=""https://github.com/Axtorz/MidiToRblx"">MidiToRblx by Axtorz</a>",IDC_SYSLINK1,
                     "SysLink",WS_TABSTOP,16,286,64,13
     GROUPBOX        "Transposition",IDC_STATIC,16,217,77,33
@@ -63,9 +64,9 @@ BEGIN
     GROUPBOX        "Mode",IDC_STATIC,94,253,77,33
     LTEXT           "0",NPS_LABEL,106,193,52,8
     CONTROL         "",OCTAVE_DUP_CONTROL,"msctls_updown32",UDS_ARROWKEYS,26,264,10,14
-    CONTROL         "0",OCTAVEDUP_RICH,"RichEdit20W",ES_AUTOHSCROLL | ES_READONLY | WS_BORDER | WS_TABSTOP,41,264,40,14
+    CONTROL         "0",OCTAVEDUP_RICH,"RichEdit20W",WS_BORDER | WS_TABSTOP | 0x880,41,264,40,14
     CONTROL         "",OCTAVE_SHIFT_CONTROL,"msctls_updown32",UDS_ARROWKEYS,104,229,10,14
-    CONTROL         "0",OCTAVE_SHIFT_RICH,"RichEdit20W",ES_AUTOHSCROLL | ES_READONLY | WS_BORDER | WS_TABSTOP,119,229,40,14
+    CONTROL         "0",OCTAVE_SHIFT_RICH,"RichEdit20W",WS_BORDER | WS_TABSTOP | 0x880,119,229,40,14
     GROUPBOX        "Echo/Delay",GRPBOX_ECHODELAY,173,217,110,69
     CONTROL         "RGB MODE!!",RGB_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,161,192,51,10
     CONTROL         "MidiToQwerty",M2Q_MODE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,108,260,56,10
@@ -141,9 +142,10 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "MidiToRblx"
-            VALUE "FileDescription", "Low-latency MIDI to Roblox keyboard bridge"
+            VALUE "FileDescription", "YoYOoyOYoyo les gars C'est LE MEILLEUR mais vraiment le MEILLEUR bridge midi roblox qui est disponible sur cette terre et meme sur toutes les autres terres du multivers! si vous voulez etre un vrai giga chad il faut l'utiliser!!"
             VALUE "FileVersion", "1.0.0"
             VALUE "InternalName", "MidiToRblx.exe"
+            VALUE "LegalCopyright", "Axtorz"
             VALUE "OriginalFilename", "MidiToRblx.exe"
             VALUE "ProductName", "MidiToRblx"
             VALUE "ProductVersion", "1.0.0"

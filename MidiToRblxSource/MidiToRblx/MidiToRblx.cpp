@@ -30,6 +30,7 @@
 namespace {
 
 constexpr wchar_t kWindowTitle[] = L"MidiToRblx";
+constexpr wchar_t kMainDialogClassName[] = L"MidiToRblx.MainDialog";
 constexpr UINT_PTR kProgressTimer = 1;
 constexpr int kDeleteHotkeyId = 1;
 constexpr UINT kLoadFinishedMessage = WM_APP + 1;
@@ -45,6 +46,42 @@ constexpr int kMinimumOctaveShift = -10;
 constexpr int kMaximumOctaveShift = 10;
 constexpr int kMinimumOctaveDuplication = -10;
 constexpr int kMaximumOctaveDuplication = 10;
+constexpr int kMidiBufferReleaseAttempts = 100;
+
+HICON LoadApplicationIcon(HINSTANCE instance, int width, int height) {
+    return reinterpret_cast<HICON>(LoadImageW(
+        instance, MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON, width, height,
+        LR_DEFAULTCOLOR | LR_SHARED));
+}
+
+bool RegisterMainDialogClass(HINSTANCE instance) {
+    HICON largeIcon = LoadApplicationIcon(
+        instance, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON));
+    HICON smallIcon = LoadApplicationIcon(
+        instance, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON));
+    if (largeIcon == nullptr) {
+        largeIcon = smallIcon;
+    }
+    if (smallIcon == nullptr) {
+        smallIcon = largeIcon;
+    }
+    if (largeIcon == nullptr) {
+        return false;
+    }
+
+    WNDCLASSEXW windowClass{};
+    windowClass.cbSize = sizeof(windowClass);
+    windowClass.style = CS_DBLCLKS;
+    windowClass.lpfnWndProc = DefDlgProcW;
+    windowClass.cbWndExtra = DLGWINDOWEXTRA;
+    windowClass.hInstance = instance;
+    windowClass.hIcon = largeIcon;
+    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    windowClass.lpszClassName = kMainDialogClassName;
+    windowClass.hIconSm = smallIcon;
+    return RegisterClassExW(&windowClass) != 0;
+}
 
 class EmbeddedTexture {
 public:
@@ -1021,6 +1058,10 @@ public:
 
     bool Start(UINT deviceId, std::wstring& error) {
         Stop();
+        if (handle_ != nullptr) {
+            error = L"The previous MIDI input handle could not be closed.";
+            return false;
+        }
         HMIDIIN opened = nullptr;
         MMRESULT result = midiInOpen(&opened, deviceId,
                                      reinterpret_cast<DWORD_PTR>(&MidiInput::Callback),
@@ -1049,6 +1090,7 @@ public:
                 return false;
             }
         }
+        StartRecycleWorker();
         active_.store(true, std::memory_order_release);
         result = midiInStart(handle_);
         if (result != MMSYSERR_NOERROR) {
@@ -1061,7 +1103,6 @@ public:
     }
 
     void Stop() {
-        active_.store(false, std::memory_order_release);
         ReleaseHandle();
     }
 
@@ -1082,15 +1123,18 @@ private:
             return;
         }
         auto* self = reinterpret_cast<MidiInput*>(instance);
-        if (!self->active_.load(std::memory_order_acquire)) {
-            return;
+        self->callbacksInProgress_.fetch_add(1, std::memory_order_acq_rel);
+        if (self->active_.load(std::memory_order_acquire)) {
+            if (message == MIM_DATA || message == MIM_ERROR) {
+                self->ProcessShortMessage(static_cast<std::uint32_t>(parameter1),
+                                          message == MIM_ERROR);
+            } else if (message == MIM_LONGDATA || message == MIM_LONGERROR) {
+                self->ProcessLongMessage(reinterpret_cast<MIDIHDR*>(parameter1),
+                                         message == MIM_LONGERROR);
+            }
         }
-        if (message == MIM_DATA || message == MIM_ERROR) {
-            self->ProcessShortMessage(static_cast<std::uint32_t>(parameter1),
-                                      message == MIM_ERROR);
-        } else if (message == MIM_LONGDATA || message == MIM_LONGERROR) {
-            self->ProcessLongMessage(reinterpret_cast<MIDIHDR*>(parameter1),
-                                     message == MIM_LONGERROR);
+        if (self->callbacksInProgress_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            self->callbacksDrained_.notify_all();
         }
     }
 
@@ -1191,31 +1235,136 @@ private:
             }
             monitor_.Record(std::move(event));
         }
-        if (header != nullptr && active_.load(std::memory_order_acquire) &&
-            handle_ != nullptr) {
+        if (header != nullptr) {
+            QueueReturnedBuffer(header);
+        }
+    }
+
+    void StartRecycleWorker() {
+        {
+            std::lock_guard lock(recycleMutex_);
+            recycleStopRequested_ = false;
+            returnedBuffers_.clear();
+        }
+        recycleThread_ = std::thread([this] { RecycleBuffers(); });
+    }
+
+    void StopRecycleWorker() {
+        {
+            std::lock_guard lock(recycleMutex_);
+            recycleStopRequested_ = true;
+            returnedBuffers_.clear();
+        }
+        recycleCv_.notify_all();
+        if (recycleThread_.joinable()) {
+            recycleThread_.join();
+        }
+    }
+
+    void QueueReturnedBuffer(MIDIHDR* header) {
+        if (!active_.load(std::memory_order_acquire)) {
+            return;
+        }
+        {
+            std::lock_guard lock(recycleMutex_);
+            if (recycleStopRequested_ ||
+                !active_.load(std::memory_order_acquire)) {
+                return;
+            }
+            returnedBuffers_.push_back(header);
+        }
+        recycleCv_.notify_one();
+    }
+
+    void RecycleBuffers() {
+        while (true) {
+            MIDIHDR* header = nullptr;
+            {
+                std::unique_lock lock(recycleMutex_);
+                recycleCv_.wait(lock, [this] {
+                    return recycleStopRequested_ || !returnedBuffers_.empty();
+                });
+                if (recycleStopRequested_) {
+                    return;
+                }
+                header = returnedBuffers_.back();
+                returnedBuffers_.pop_back();
+            }
+            if (!active_.load(std::memory_order_acquire) || handle_ == nullptr) {
+                continue;
+            }
             header->dwBytesRecorded = 0;
             const MMRESULT result = midiInAddBuffer(handle_, header, sizeof(MIDIHDR));
-            if (result != MMSYSERR_NOERROR) {
+            if (result != MMSYSERR_NOERROR &&
+                active_.load(std::memory_order_acquire)) {
                 monitor_.RecordError(L"Could not recycle a SysEx input buffer: " +
                                      WinMmError(result));
             }
         }
     }
 
+    void WaitForCallbacks() {
+        std::unique_lock lock(callbackMutex_);
+        callbacksDrained_.wait(lock, [this] {
+            return callbacksInProgress_.load(std::memory_order_acquire) == 0;
+        });
+    }
+
     void ReleaseHandle() {
+        active_.store(false, std::memory_order_release);
+        StopRecycleWorker();
         if (handle_ == nullptr) {
             return;
         }
-        midiInStop(handle_);
-        midiInReset(handle_);
-        for (LongBuffer& buffer : longBuffers_) {
-            if (buffer.prepared) {
-                midiInUnprepareHeader(handle_, &buffer.header, sizeof(buffer.header));
-                buffer.prepared = false;
+        const MMRESULT stopResult = midiInStop(handle_);
+        if (stopResult != MMSYSERR_NOERROR) {
+            monitor_.RecordError(L"Could not stop the MIDI input device: " +
+                                 WinMmError(stopResult));
+        }
+        const MMRESULT resetResult = midiInReset(handle_);
+        if (resetResult != MMSYSERR_NOERROR) {
+            monitor_.RecordError(L"Could not reset the MIDI input device: " +
+                                 WinMmError(resetResult));
+        }
+        WaitForCallbacks();
+
+        MMRESULT lastUnprepareResult = MMSYSERR_NOERROR;
+        for (int attempt = 0; attempt < kMidiBufferReleaseAttempts; ++attempt) {
+            bool allReleased = true;
+            for (LongBuffer& buffer : longBuffers_) {
+                if (!buffer.prepared) {
+                    continue;
+                }
+                const MMRESULT result = midiInUnprepareHeader(
+                    handle_, &buffer.header, sizeof(buffer.header));
+                if (result == MMSYSERR_NOERROR) {
+                    buffer.prepared = false;
+                } else {
+                    lastUnprepareResult = result;
+                    allReleased = false;
+                }
+            }
+            if (allReleased) {
+                break;
+            }
+            Sleep(1);
+        }
+        if (lastUnprepareResult != MMSYSERR_NOERROR) {
+            const bool anyPrepared = std::any_of(
+                longBuffers_.begin(), longBuffers_.end(),
+                [](const LongBuffer& buffer) { return buffer.prepared; });
+            if (anyPrepared) {
+                monitor_.RecordError(L"Could not release all MIDI input buffers: " +
+                                     WinMmError(lastUnprepareResult));
             }
         }
-        midiInClose(handle_);
-        handle_ = nullptr;
+        const MMRESULT closeResult = midiInClose(handle_);
+        if (closeResult == MMSYSERR_NOERROR) {
+            handle_ = nullptr;
+        } else {
+            monitor_.RecordError(L"Could not close the MIDI input device: " +
+                                 WinMmError(closeResult));
+        }
     }
 
     DebugMonitor& monitor_;
@@ -1224,6 +1373,14 @@ private:
     UINT deviceId_ = 0;
     std::array<LongBuffer, 4> longBuffers_{};
     std::atomic_bool active_{false};
+    std::thread recycleThread_;
+    std::mutex recycleMutex_;
+    std::condition_variable recycleCv_;
+    std::vector<MIDIHDR*> returnedBuffers_;
+    bool recycleStopRequested_ = true;
+    std::atomic_uint32_t callbacksInProgress_{0};
+    std::mutex callbackMutex_;
+    std::condition_variable callbacksDrained_;
 };
 
 class Application {
@@ -1359,9 +1516,12 @@ private:
                         kWindowTitle, MB_OK | MB_ICONWARNING);
         }
 
-        const HICON icon = LoadIconW(instance_, MAKEINTRESOURCEW(IDI_APP_ICON));
-        SendMessageW(window_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
-        SendMessageW(window_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+        const HICON largeIcon = reinterpret_cast<HICON>(
+            GetClassLongPtrW(window_, GCLP_HICON));
+        const HICON smallIcon = reinterpret_cast<HICON>(
+            GetClassLongPtrW(window_, GCLP_HICONSM));
+        SendMessageW(window_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+        SendMessageW(window_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
         SendMessageW(progress_, PBM_SETRANGE32, 0, 1000);
         EnableWindow(stopInput_, FALSE);
         EnableWindow(playFile_, FALSE);
@@ -2019,6 +2179,12 @@ private:
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    if (!RegisterMainDialogClass(instance)) {
+        MessageBoxW(nullptr, L"MidiToRblx could not register its main window.",
+                    kWindowTitle, MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
     INITCOMMONCONTROLSEX commonControls{};
     commonControls.dwSize = sizeof(commonControls);
     commonControls.dwICC =
